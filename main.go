@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -20,10 +20,6 @@ type Task struct {
 	Id   int
 	Task string
 	Done bool
-}
-
-func init() {
-	tmpl = template.Must(template.ParseGlob("templates/*.html"))
 }
 
 func initDB() {
@@ -44,62 +40,56 @@ func initDB() {
 func main() {
 	fmt.Println("Setting up server...")
 
-	gRouter := mux.NewRouter()
-
 	// Setup SQLite
 	initDB()
 	defer db.Close()
 
-	gRouter.HandleFunc("/", Homepage)
+	r := gin.Default()
 
-	//Get Tasks
-	gRouter.HandleFunc("/tasks", fetchTasks).Methods("GET")
+	// Load HTML templates
+	r.LoadHTMLGlob("templates/*.html")
 
-	//Fetch Add Task Form
-	gRouter.HandleFunc("/newtaskform", getTaskForm)
-
-	//Add Task
-	gRouter.HandleFunc("/tasks", addTask).Methods("POST")
-
-	//Fetch Update Form
-	gRouter.HandleFunc("/gettaskupdateform/{id}", getTaskUpdateForm).Methods("GET")
-
-	//Update Task
-	gRouter.HandleFunc("/tasks/{id}", updateTask).Methods("PUT", "POST")
-
-	//Delete Task
-	gRouter.HandleFunc("/tasks/{id}", deleteTask).Methods("DELETE")
+	// v1
+	v1 := r.Group("/v1")
+	{
+		v1.GET("/", Homepage)
+		v1.GET("/tasks", fetchTasks)
+		v1.GET("/newtaskform", getTaskForm)
+		v1.POST("/tasks", addTask)
+		v1.GET("/gettaskupdateform/:id", getTaskUpdateForm)
+		v1.PUT("/tasks/:id", updateTask)
+		v1.POST("/tasks/:id", updateTask)
+		v1.DELETE("/tasks/:id", deleteTask)
+	}
 
 	port := "4000"
 	fmt.Println("Starting server on http://localhost:4000")
-	http.ListenAndServe(":"+port, gRouter)
+	r.Run(":" + port)
 }
 
-func Homepage(w http.ResponseWriter, r *http.Request) {
-	tmpl.ExecuteTemplate(w, "home.html", nil)
+func Homepage(c *gin.Context) {
+	c.HTML(http.StatusOK, "home.html", nil)
 }
 
-func fetchTasks(w http.ResponseWriter, r *http.Request) {
+func fetchTasks(c *gin.Context) {
 	todos, err := getTasks(db)
 	if err != nil {
 		log.Fatal(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		c.String(http.StatusInternalServerError, err.Error())
 		return
 	}
 	//fmt.Println(todos)
 
 	//If you used "define" to define the template, use the name you gave it here, not the filename
-	tmpl.ExecuteTemplate(w, "todoList", todos)
+	c.HTML(http.StatusOK, "todoList", todos)
 }
 
-func getTaskForm(w http.ResponseWriter, r *http.Request) {
-
-	tmpl.ExecuteTemplate(w, "addTaskForm", nil)
+func getTaskForm(c *gin.Context) {
+	c.HTML(http.StatusOK, "addTaskForm", nil)
 }
 
-func addTask(w http.ResponseWriter, r *http.Request) {
-
-	task := r.FormValue("task")
+func addTask(c *gin.Context) {
+	task := c.PostForm("task")
 
 	fmt.Println(task)
 
@@ -123,39 +113,40 @@ func addTask(w http.ResponseWriter, r *http.Request) {
 
 	//You can also just send back the single task and append it
 	//I like returning the whole list just to get everything fresh, but this might not be the best strategy
-	tmpl.ExecuteTemplate(w, "todoList", todos)
-
+	c.HTML(http.StatusOK, "todoList", todos)
 }
 
-func getTaskUpdateForm(w http.ResponseWriter, r *http.Request) {
-
-	vars := mux.Vars(r)
-
+func getTaskUpdateForm(c *gin.Context) {
 	//Convert string id from URL to integer
-	taskId, _ := strconv.Atoi(vars["id"])
-
-	task, err := getTaskByID(db, taskId)
-
+	taskId, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		c.String(http.StatusBadRequest, "Invalid task ID")
+		return
 	}
 
-	tmpl.ExecuteTemplate(w, "updateTaskForm", task)
+	task, err := getTaskByID(db, taskId)
+	if err != nil {
+		c.String(http.StatusInternalServerError, err.Error())
+		return
+	}
 
+	c.HTML(http.StatusOK, "updateTaskForm", task)
 }
 
-func updateTask(w http.ResponseWriter, r *http.Request) {
+func updateTask(c *gin.Context) {
+	taskId, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.String(http.StatusBadRequest, "Invalid task ID")
+		return
+	}
 
-	vars := mux.Vars(r)
-
-	taskItem := r.FormValue("task")
-	//taskStatus, _ := strconv.ParseBool(r.FormValue("done"))
+	taskItem := c.PostForm("task")
 	var taskStatus bool
 
-	fmt.Println(r.FormValue("done"))
+	fmt.Println(c.PostForm("done"))
 
 	//Check the string value of the checkbox
-	switch strings.ToLower(r.FormValue("done")) {
+	switch strings.ToLower(c.PostForm("done")) {
 	case "yes", "on":
 		taskStatus = true
 	case "no", "off":
@@ -163,8 +154,6 @@ func updateTask(w http.ResponseWriter, r *http.Request) {
 	default:
 		taskStatus = false
 	}
-
-	taskId, _ := strconv.Atoi(vars["id"])
 
 	task := Task{
 		taskId, taskItem, taskStatus,
@@ -179,29 +168,29 @@ func updateTask(w http.ResponseWriter, r *http.Request) {
 	//Refresh all Tasks
 	todos, _ := getTasks(db)
 
-	tmpl.ExecuteTemplate(w, "todoList", todos)
+	c.HTML(http.StatusOK, "todoList", todos)
 }
 
-func deleteTask(w http.ResponseWriter, r *http.Request) {
-
-	vars := mux.Vars(r)
-
-	taskId, _ := strconv.Atoi(vars["id"])
-
-	err := deleTaskWithID(db, taskId)
-
+func deleteTask(c *gin.Context) {
+	taskId, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		c.String(http.StatusBadRequest, "Invalid task ID")
+		return
+	}
+
+	err = deleTaskWithID(db, taskId)
+	if err != nil {
+		c.String(http.StatusInternalServerError, err.Error())
+		return
 	}
 
 	//Return list
 	todos, _ := getTasks(db)
 
-	tmpl.ExecuteTemplate(w, "todoList", todos)
+	c.HTML(http.StatusOK, "todoList", todos)
 }
 
 func getTasks(dbPointer *sql.DB) ([]Task, error) {
-
 	query := "SELECT id, task, done FROM todos"
 
 	rows, err := dbPointer.Query(query)
@@ -212,16 +201,12 @@ func getTasks(dbPointer *sql.DB) ([]Task, error) {
 	defer rows.Close()
 
 	var tasks []Task
-
 	for rows.Next() {
 		var todo Task
-
 		rowErr := rows.Scan(&todo.Id, &todo.Task, &todo.Done)
-
 		if rowErr != nil {
 			return nil, err
 		}
-
 		tasks = append(tasks, todo)
 	}
 
@@ -234,14 +219,11 @@ func getTasks(dbPointer *sql.DB) ([]Task, error) {
 }
 
 func getTaskByID(dbPointer *sql.DB, id int) (*Task, error) {
-
 	query := "SELECT id, task, done FROM todos WHERE id = ?"
 
 	var task Task
-
 	row := dbPointer.QueryRow(query, id)
 	err := row.Scan(&task.Id, &task.Task, &task.Done)
-
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("no task was found with task %d", id)
@@ -254,17 +236,14 @@ func getTaskByID(dbPointer *sql.DB, id int) (*Task, error) {
 }
 
 func updateTaskById(dbPointer *sql.DB, task Task) error {
-
 	query := "UPDATE todos SET task = ?, done = ? WHERE id = ?"
 
 	result, err := dbPointer.Exec(query, task.Task, task.Done, task.Id)
-
 	if err != nil {
 		return err
 	}
 
 	rowsAffected, err := result.RowsAffected()
-
 	if err != nil {
 		return err
 	}
@@ -280,11 +259,9 @@ func updateTaskById(dbPointer *sql.DB, task Task) error {
 }
 
 func deleTaskWithID(dbPointer *sql.DB, id int) error {
-
 	query := "DELETE FROM todos WHERE id = ?"
 
 	stmt, err := dbPointer.Prepare(query)
-
 	if err != nil {
 		return err
 	}

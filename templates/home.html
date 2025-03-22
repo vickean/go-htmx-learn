@@ -16,10 +16,10 @@
             <h2>Tasks</h2>
 
             <div>
-                <button class="btn btn-primary" href="#" hx-get="/newtaskform" hx-target="#addTaskForm">Add New Item</button>
+                <button class="btn btn-primary" href="#" hx-get="/v1/newtaskform" hx-target="#addTaskForm">Add New Item</button>
             </div>
 
-            <div id="taskList" hx-get="/tasks" hx-trigger="load" hx-swap="innerHTML">
+            <div id="taskList" hx-get="/v1/tasks" hx-trigger="load" hx-swap="innerHTML">
 
             </div>
 
@@ -28,8 +28,6 @@
 
         </div> -->
         <div class="col">
-            <h2>Add New Task</h2>
-
             <div id="addTaskForm">
                 {{template "addTaskForm"}}
             </div>
