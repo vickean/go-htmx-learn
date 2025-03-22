@@ -50,7 +50,8 @@ func main() {
 	r.LoadHTMLGlob("templates/*.html")
 
 	// v1
-	v1 := r.Group("/v1")
+	v1Prefix := "/v1"
+	v1 := r.Group(v1Prefix)
 	{
 		v1.GET("/", Homepage)
 		v1.GET("/tasks", fetchTasks)
@@ -63,7 +64,7 @@ func main() {
 	}
 
 	port := "4000"
-	fmt.Println("Starting server on http://localhost:4000")
+	fmt.Println("Starting server on http://localhost:4000" + v1Prefix)
 	r.Run(":" + port)
 }
 
