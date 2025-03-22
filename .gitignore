@@ -1,0 +1,52 @@
+# Binaries for programs and plugins
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test binaries
+*.test
+*.test.exe
+
+# Coverage profiles
+*.prof
+
+# Dependency directories
+/vendor/
+
+# IDE-specific files
+.idea/
+.vscode/
+*.iml
+
+# Go build artifacts
+*.o
+*.a
+
+# Go executables
+/bin/
+
+# Temporary files (common pattern for go test cache)
+/test_cache/
+
+# htmx build artifacts or temp files (if applicable)
+# If you are compiling htmx from source or using a builder, you might
+# have some output from that here. Adjust as needed
+# e.g. /dist/ or /build/
+#/dist/
+#/build/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Editor backup files
+*~
+.*.swp
+.#*
+
+# Other
+/.env
